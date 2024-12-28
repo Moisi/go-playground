@@ -27,6 +27,8 @@ type ChanMap struct {
 
 func InitChanMap(maxConcurrentWriters int) (ChanMap, chan interface{}) {
 	m := ChanMap{}
+	m.m = make(map[string]int)
+
 	// user would use this channel to stop the map's bg process
 	m.close = make(chan interface{})
 
@@ -41,7 +43,9 @@ func InitChanMap(maxConcurrentWriters int) (ChanMap, chan interface{}) {
 			case <-m.close:
 				break
 			case p := <-m.postKey:
-				fmt.Printf("Received a %q /n", reflect.TypeOf(p).Name())
+				fmt.Printf("Received a %q \n", reflect.TypeOf(p).Name())
+				fmt.Println("SET-stored: ", "key:", p.key, ". val:", p.val)
+				m.m[p.key] = p.val
 			}
 		}
 	}()
@@ -49,12 +53,20 @@ func InitChanMap(maxConcurrentWriters int) (ChanMap, chan interface{}) {
 	return m, m.close
 }
 
+// eventual consistency:
 func (m *ChanMap) Set(key string, val int) {
-	fmt.Println("key:", key, ". val:", val)
+	fmt.Println("SET-req: ", "key:", key, ". val:", val)
 	if len(m.postKey) == cap(m.postKey) {
 		fmt.Println("channel full, this call would block:", key, ":", val)
 		// TODO(metric): increase block counter?
 	}
 	m.postKey <- elem{key, val}
 	return
+}
+
+// Read gets served imediatly from map:
+func (m *ChanMap) Get(key string) (string, int) {
+	val, _ := m.m[key]
+	fmt.Println("GET: ", "key:", key, ". val:", val)
+	return key, val
 }
